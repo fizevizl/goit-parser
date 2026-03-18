@@ -53,7 +53,7 @@ class GoITScraper:
                 topic.click()
                 page.wait_for_timeout(1000)
 
-                # Ищем кнопку "Домашнє завдання" по data-testid из вашего скриншота
+                # Ищем кнопку "Домашнє завдання" по data-testid
                 hw_button = topic.locator("xpath=./..").locator('div[data-testid="NavigationList__ListItemContent_tab_homework"]')
 
                 if hw_button.count() > 0:
@@ -71,7 +71,7 @@ class GoITScraper:
                     }
 
                     try:
-                        # Сбор статуса по классу со скриншота (p.next-m5589s)
+                        # Сбор статуса по классу p.next-m5589s
                         status_locator = page.locator('p.next-m5589s')
                         if status_locator.count() > 0:
                             info["status"] = status_locator.first.inner_text().strip()
