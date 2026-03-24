@@ -35,34 +35,43 @@ class GoITScraper:
 
             items_data = []
             # Селектор тем (родительских модулей)
-            items_selector = 'ul[open] > li > div[data-testid^="NavigationList__ListItemContent"]'
+            # Идеальный селектор: берет только заголовки тем, игнорируя вложенные вкладки
+            items_selector = 'ul[open] > li > div[data-testid^="NavigationList__ListItemContent"]:not([data-testid*="_tab_"])'
             
             page.wait_for_selector(items_selector)
             count = page.locator(items_selector).count()
-            print(f"Найдено тем для анализа: {count}")
+            print(f"Найдено чистых тем: {count}")
 
             for i in range(count):
-                # Обновляем локаторы, чтобы избежать ошибки Stale Element
+                # 1. Свежий поиск темы
                 items = page.locator(items_selector)
-                topic = items.nth(i)
-                
-                topic_name = topic.inner_text().split('\n')[0].strip()
-                print(f"\n[Тема]: {topic_name}")
+                current_topic = items.nth(i)
+                topic_name = current_topic.inner_text().split('\n')[0].strip()
+                print(f"\n[Анализ]: {topic_name}")
 
-                # Раскрываем тему
-                topic.click()
+                # 2. Раскрываем тему
+                current_topic.click()
                 page.wait_for_timeout(1000)
 
-                # Ищем кнопку "Домашнє завдання" по data-testid
-                hw_button = topic.locator("xpath=./..").locator('div[data-testid="NavigationList__ListItemContent_tab_homework"]')
+                # 3. ИЩЕМ КНОПКУ ДЗ (она находится в одном из следующих <li>)
+                # Мы ищем элемент с текстом "Домашнє завдання", который ВИДИМ сейчас
+                # После клика по теме нужная кнопка становится visible=True
+                hw_tab = page.locator('div[data-testid*="homework"]').filter(has_text="Домашнє завдання")
 
-                if hw_button.count() > 0:
-                    print(f"   [!] Найдено 'Домашнє завдання'.")
-                    hw_button.first.click()
+                # Проверяем именно видимость первого попавшегося элемента
+                if hw_tab.first.is_visible():
+                    print(f"   [+] Перехожу в ДЗ...")
                     
-                    # Ждем загрузки и отрисовки SPA
+                    # 1. Кликаем
+                    hw_tab.first.click()
+                    
+                    # 2. Ждем сетевой тишины
                     page.wait_for_load_state("networkidle")
-                    page.wait_for_timeout(2500) 
+
+                    # 3. КРИТИЧЕСКИЙ МОМЕНТ: 
+                    # Ждем, пока в DOM появится дедлайн, и даем ПРИНУДИТЕЛЬНУЮ паузу.
+                    # SPA часто меняет URL раньше, чем перерисовывает текст.
+                    page.wait_for_timeout(2500) # Увеличили до 2.5 сек для гарантии
 
                     info = {
                         "status": "Не определено",
@@ -70,48 +79,41 @@ class GoITScraper:
                         "hw_url": page.url
                     }
 
+                    # 4. Сбор данных
                     try:
-                        # Сбор статуса по классу p.next-m5589s
-                        status_locator = page.locator('p.next-m5589s')
-                        if status_locator.count() > 0:
-                            info["status"] = status_locator.first.inner_text().strip()
+                        # Статус
+                        status_loc = page.locator('p[class*="next-"]:has-text("Завдання")').first
+                        if status_loc.count() > 0:
+                            info["status"] = status_el = status_loc.inner_text().strip()
 
-                        # Сбор дедлайна
-                        deadline_label = page.locator('span:has-text("Дедлайн")')
-                        if deadline_label.count() > 0:
-                            # Извлекаем дату из соседнего span
-                            time_val = deadline_label.locator("xpath=./following-sibling::span")
-                            if time_val.count() > 0:
-                                info["deadline"] = time_val.first.inner_text().strip()
-
-                        print(f"   [S] Статус: {info['status']} | Дедлайн: {info['deadline']}")
-
+                        # Дедлайн
+                        deadline_row = page.locator('span:has-text("Дедлайн")').locator("xpath=./following-sibling::span").first
+                        # Ждем, чтобы текст дедлайна вообще появился
+                        deadline_row.wait_for(state="visible", timeout=5000)
+                        info["deadline"] = deadline_row.inner_text().strip()
+                        
+                        print(f"   [S] Записано для этой темы: {info['deadline']}")
                     except Exception as e:
-                        print(f"   [!] Ошибка при чтении страницы: {e}")
+                        print(f"   [!] Ошибка парсинга: {e}")
 
-                    items_data.append({
-                        "topic": topic_name,
-                        "homework": info
-                    })
+                    items_data.append({"topic": topic_name, "homework": info})
 
-                    # Назад к списку тем
+                    # 5. Возврат назад
                     page.go_back()
+                    page.wait_for_load_state("networkidle")
+                    # Ждем, пока список тем снова станет видимым
                     page.wait_for_selector(items_selector, timeout=10000)
-                else:
-                    print(f"   [x] Поле ДЗ в этой теме отсутствует.")
-                    items_data.append({
-                        "topic": topic_name,
-                        "homework": None
-                    })
+                    
+                    # Сворачиваем тему (находим заново)
+                    page.locator(items_selector).nth(i).click()
+                    page.wait_for_timeout(1000) # Пауза перед следующей итерацией
 
-            # 3. Сохранение в JSON
             os.makedirs("output", exist_ok=True)
             with open("output/goit_scrap.json", "w", encoding="utf-8") as f:
                 json.dump(items_data, f, ensure_ascii=False, indent=2)
 
             browser.close()
             # page.pause()  для просмотра сайта после выполнения кода 
-
 
 if __name__ == "__main__":
     app_cfg = Config()
