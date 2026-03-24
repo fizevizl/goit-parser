@@ -2,15 +2,13 @@
   {
     "topic": "1. Тема 1. Основи аналітики даних",
     "homework": {
-      "status": "Завдання прийнято",
-      "deadline": "23:45, 10 серп. 2025",
-      "hw_url": "https://www.edu.goit.global/uk/learn/38682632/35536012/35536138/homework"
+      "deadline": "23:45, 31 серп. 2025",
+      "hw_url": "https://www.edu.goit.global/uk/learn/38682632/35536012/35589099/homework"
     }
   },
   {
     "topic": "2. Тема 2. Базова робота з даними для розрахунку показників",
     "homework": {
-      "status": "Завдання прийнято",
       "deadline": "23:45, 10 серп. 2025",
       "hw_url": "https://www.edu.goit.global/uk/learn/38682632/35536012/35536138/homework"
     }
@@ -18,7 +16,6 @@
   {
     "topic": "3. Тема 3. Аналіз варіабельності даних та метрики активності",
     "homework": {
-      "status": "Завдання прийнято",
       "deadline": "23:45, 17 серп. 2025",
       "hw_url": "https://www.edu.goit.global/uk/learn/38682632/35536012/35560573/homework"
     }
@@ -26,7 +23,6 @@
   {
     "topic": "4. Тема 4. Розширені функції аналізу та візуалізації даних",
     "homework": {
-      "status": "Завдання прийнято",
       "deadline": "23:45, 19 серп. 2025",
       "hw_url": "https://www.edu.goit.global/uk/learn/38682632/35536012/35572264/homework"
     }
@@ -34,7 +30,6 @@
   {
     "topic": "5. Тема 5. Робота з функціями та перевірка даних в Google Sheets",
     "homework": {
-      "status": "Завдання прийнято",
       "deadline": "23:45, 24 серп. 2025",
       "hw_url": "https://www.edu.goit.global/uk/learn/38682632/35536012/35573160/homework"
     }
@@ -42,7 +37,6 @@
   {
     "topic": "6. Тема 6. Зведені таблиці, градієнти та когортний аналіз",
     "homework": {
-      "status": "Завдання прийнято",
       "deadline": "23:45, 26 серп. 2025",
       "hw_url": "https://www.edu.goit.global/uk/learn/38682632/35536012/35579145/homework"
     }
