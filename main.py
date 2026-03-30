@@ -17,6 +17,17 @@ class GoITScraper:
     def __init__(self, config: Config):
         self.cfg = config
 
+    # ✅ КЛИК ПО СТРЕЛКЕ (toggle темы)
+    def toggle_topic(self, topic):
+        icon_btn = topic.locator(
+            'xpath=.//button[contains(@data-testid, "NavigationList__ListItemIcon")]'
+        ).first
+
+        if icon_btn.count() > 0:
+            icon_btn.click(force=True)
+        else:
+            topic.click(force=True)
+
     def run(self):
         with sync_playwright() as p:
             browser = p.chromium.launch(headless=False)
@@ -37,65 +48,74 @@ class GoITScraper:
             topic_selector = 'div[data-testid^="NavigationList__ListItemContent"]:not([data-testid*="_tab_"])'
             page.wait_for_selector(topic_selector)
 
-            raw_topics = page.locator(topic_selector).all_inner_texts()
-            topic_names = [t.split('\n')[0].strip() for t in raw_topics if t.strip()]
+            topics = page.locator(topic_selector)
+            count = topics.count()
 
             items_data = []
 
-            print("[!] Подготовка: закрываю все открытые темы...")
-
-            topic_selector = 'div[data-testid^="NavigationList__ListItemContent"]:not([data-testid*="_tab_"])'
-            topics = page.locator(topic_selector)
-
-            count = topics.count()
+            # --- ✅ ШАГ 1: закрываем ВСЕ темы ---
+            print("[!] Закрываю все открытые темы...")
 
             for i in range(count):
                 topic = topics.nth(i)
-                
+
                 try:
-                    # если внутри есть ДЗ — значит тема открыта
                     container = topic.locator("xpath=ancestor::li")
-                    is_open = container.locator('div[data-testid*="_tab_homework"]').count() > 0
+
+                    # если есть вложенные li → тема открыта
+                    is_open = container.locator("ul >> li").count() > 0
 
                     if is_open:
-                        topic.click()
+                        self.toggle_topic(topic)
                         page.wait_for_timeout(500)
 
                 except Exception:
                     continue
 
-            print("[✓] Все темы приведены к закрытому состоянию")
+            print("[✓] Все темы закрыты")
+            page.wait_for_timeout(5000)
 
-            for i, name in enumerate(topic_names):
-                print(f"\n[Анализ {i+1}/{len(topic_names)}]: {name}")
+            # --- ✅ ШАГ 2: основной цикл ---
+            for i in range(count):
+                topics = page.locator(topic_selector)  # обновляем DOM
+                topic = topics.nth(i)
 
                 try:
-                    # найти тему
-                    topic_header = page.locator(topic_selector).filter(has_text=name).first
-                    topic_header.scroll_into_view_if_needed()
-                    topic_header.wait_for(state="visible", timeout=5000)
-                    topic_header.click()
+                    name = topic.inner_text().split("\n")[0].strip()
+                    print(f"\n[Анализ {i+1}/{count}]: {name}")
 
-                    # ищем кнопку ДЗ
-                    hw_tab = page.locator('div[data-testid*="_tab_homework"]').filter(has_text="Домашнє завдання").first
+                    topic.scroll_into_view_if_needed()
+
+                    # 👉 открываем тему
+                    self.toggle_topic(topic)
+                    page.wait_for_timeout(500)
+
+                    # ищем ДЗ
+                    hw_tab = page.locator(
+                        'div[data-testid*="_tab_homework"]'
+                    ).filter(has_text="Домашнє завдання").first
 
                     if hw_tab.count() == 0:
-                        print("   [-] В теме нет ДЗ")
+                        print("   [-] Нет ДЗ")
                         items_data.append({"topic": name, "homework": None})
+
+                        # закрываем обратно
+                        self.toggle_topic(topic)
                         continue
 
                     hw_tab.wait_for(state="visible", timeout=5000)
 
-                    # --- КЛИК ---
+                    # переход в ДЗ
                     with page.expect_navigation(wait_until="networkidle"):
                         hw_tab.click()
 
-                    # --- ЖДЕМ ДЕДЛАЙН ---
+                    # --- дедлайн ---
                     deadline_label = page.locator('span:has-text("Дедлайн")').first
                     deadline_label.wait_for(timeout=10000)
 
-                    deadline_value = deadline_label.locator('xpath=following-sibling::span').first
-                    deadline_value.wait_for(timeout=10000)
+                    deadline_value = deadline_label.locator(
+                        "xpath=following-sibling::span"
+                    ).first
 
                     current_deadline = deadline_value.inner_text().strip()
 
@@ -109,27 +129,28 @@ class GoITScraper:
                         }
                     })
 
-                    # --- НАЗАД ---
+                    # --- назад ---
                     page.go_back()
                     page.wait_for_load_state("networkidle")
-
-                    # важно: снова дождаться списка тем
                     page.wait_for_selector(topic_selector)
 
-                    # закрываем тему
-                    topic_header = page.locator(topic_selector).filter(has_text=name).first
-                    if topic_header.is_visible():
-                        topic_header.click()
-                        page.wait_for_timeout(500)
+                    # 👉 закрываем тему обратно
+                    topics = page.locator(topic_selector)
+                    topic = topics.nth(i)
+
+                    self.toggle_topic(topic)
+                    page.wait_for_timeout(500)
 
                 except Exception as e:
                     print(f"   [x] Ошибка: {e}")
+
                     if "homework" in page.url:
                         page.go_back()
+
                     items_data.append({"topic": name, "homework": None})
                     continue
 
-            # --- СОХРАНЕНИЕ ---
+            # --- сохранение ---
             os.makedirs("output", exist_ok=True)
             with open("output/goit_scrap.json", "w", encoding="utf-8") as f:
                 json.dump(items_data, f, ensure_ascii=False, indent=2)
