@@ -12,12 +12,43 @@ class Config:
     PAGE = os.environ.get("PAGE", "")
     TARGET_PAGE = os.environ.get("TARGET_PAGE", "")
 
+def close_topic_if_open(page, topic_element):
+    try:
+        # контейнер всей темы (li)
+        container = topic_element.locator("xpath=ancestor::li")
+
+        # ищем вложенный список (это и есть раскрытая тема)
+        nested_list = container.locator("ul")
+
+        is_open = nested_list.count() > 0
+
+        if is_open:
+            print("   [-] Тема открыта → закрываю")
+
+            #  стрелка (ВАЖНО: именно кнопка с иконкой)
+            toggle_btn = container.locator('button[data-testid^="NavigationList__ListItemIcon"]').first
+
+            toggle_btn.click()
+            page.wait_for_timeout(500)
+
+            #  контроль: убеждаемся что закрылась
+            page.wait_for_function("""
+                (el) => el.querySelectorAll("ul").length === 0
+            """, container)
+
+            print("   [✓] Тема закрыта")
+
+        else:
+            print("   [✓] Тема уже закрыта")
+
+    except Exception as e:
+        print(f"   [!] Ошибка при закрытии темы: {e}")
 
 class GoITScraper:
     def __init__(self, config: Config):
         self.cfg = config
 
-    # ✅ КЛИК ПО СТРЕЛКЕ (toggle темы)
+    # КЛИК ПО СТРЕЛКЕ (toggle темы)
     def toggle_topic(self, topic):
         icon_btn = topic.locator(
             'xpath=.//button[contains(@data-testid, "NavigationList__ListItemIcon")]'
@@ -53,29 +84,16 @@ class GoITScraper:
 
             items_data = []
 
-            # --- ✅ ШАГ 1: закрываем ВСЕ темы ---
-            print("[!] Закрываю все открытые темы...")
+            # ---  закрываем ВСЕ темы ---
+            topic_selector = 'div[data-testid^="NavigationList__ListItemContent"]:not([data-testid*="_tab_"])'
+            topics = page.locator(topic_selector)
 
-            for i in range(count):
+            for i in range(topics.count()):
                 topic = topics.nth(i)
+                close_topic_if_open(page, topic)
+            print('topics closed')
 
-                try:
-                    container = topic.locator("xpath=ancestor::li")
-
-                    # если есть вложенные li → тема открыта
-                    is_open = container.locator("ul >> li").count() > 0
-
-                    if is_open:
-                        self.toggle_topic(topic)
-                        page.wait_for_timeout(500)
-
-                except Exception:
-                    continue
-
-            print("[✓] Все темы закрыты")
-            page.wait_for_timeout(5000)
-
-            # --- ✅ ШАГ 2: основной цикл ---
+            # ---  основной цикл ---
             for i in range(count):
                 topics = page.locator(topic_selector)  # обновляем DOM
                 topic = topics.nth(i)
@@ -86,7 +104,7 @@ class GoITScraper:
 
                     topic.scroll_into_view_if_needed()
 
-                    # 👉 открываем тему
+                    #  открываем тему
                     self.toggle_topic(topic)
                     page.wait_for_timeout(500)
 
@@ -129,12 +147,7 @@ class GoITScraper:
                         }
                     })
 
-                    # --- назад ---
-                    page.go_back()
-                    page.wait_for_load_state("networkidle")
-                    page.wait_for_selector(topic_selector)
-
-                    # 👉 закрываем тему обратно
+                    # закрываем тему обратно
                     topics = page.locator(topic_selector)
                     topic = topics.nth(i)
 
@@ -156,7 +169,6 @@ class GoITScraper:
                 json.dump(items_data, f, ensure_ascii=False, indent=2)
 
             browser.close()
-
 
 if __name__ == "__main__":
     app_cfg = Config()

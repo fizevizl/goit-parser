@@ -36,6 +36,9 @@
   },
   {
     "topic": "6. Тема 6. Зведені таблиці, градієнти та когортний аналіз",
-    "homework": null
+    "homework": {
+      "deadline": "23:45, 31 серп. 2025",
+      "hw_url": "https://www.edu.goit.global/uk/learn/38682632/35536012/35589099/homework"
+    }
   }
 ]
